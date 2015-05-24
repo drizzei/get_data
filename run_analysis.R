@@ -1,7 +1,8 @@
 library(downloader)
 
-#HARUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
-#download(HARUrl, dest = "har.zip", mode = "wb")
+HARUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+download(HARUrl, dest = "har.zip", mode = "wb")
+unzip("har.zip", exdir = "./")
 
 ##Read local files
 sub_test <- read.table("test/subject_test.txt")
@@ -22,8 +23,7 @@ rm(sub_test, x_test, y_test, sub_train, x_train, y_train)
 activity_labels <- read.table("activity_labels.txt", stringsAsFactor = FALSE)
 features <- read.table("features.txt", stringsAsFactor = FALSE)
 
-#char_feat <- as.character(features)
-#data_names <- c("Subject", "Activity", char_feat)
+library(dplyr)
 
 #Add character labels to the coded activity classes
 for(i in 1:length(y_tot$V1)) 
@@ -33,7 +33,6 @@ for(i in 1:length(y_tot$V1))
 for(j in 1:length(x_tot))
   {names(x_tot)[j] <- features[j,2]}
 
-data_total <- cbind(sub_tot, y_tot$V2, x_tot)
 
 #Remove duplicated column names
 dup_index <- duplicated(names(x_tot))
@@ -55,11 +54,14 @@ data_tot <- cbind(sub_tot, y_tot$V2, x_tot)
 names(data_tot)[1] <- "Subject"
 names(data_tot)[2] <- "Activity"
 
-library(dplyr)
-library(tidyr)
+library(reshape2)
 
+#Produce a long table
 melt_data <- melt(data_tot, id.vars = c("Subject", "Activity"))
+
+#Reproduce a wide table and calculate means for each measurement by Subject and Activity
 cast_data <- dcast(melt_data, Subject + Activity ~ variable, mean)
 
-write.table(cast_data, file = "har.txt", sep = "|", row.name = FALSE)
+#Write tidy dataset to a text file
+write.table(cast_data, file = "tidy_har.txt", sep = "|", row.name = FALSE)
 

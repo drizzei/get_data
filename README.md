@@ -1,56 +1,118 @@
 ---
-title: "Codebook"
+title: "CODEBOOK"
 output: html_document
 ---
 
-The variable names in this document represent measurements "from the accelerometer and gyroscope 3-axial raw signals (UCI)" of thirty subjects.
+This document describes the process of collecting and manipulating data from the UCI Human Activity Recognition dataset (http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones).
 
-Subject (integers from 1 to 30) provides a numeric id for the individual subject.
+Output of a tidy data set was produced using R's write.table() function and can be best read by using the read.table() function in R (as David Hood describes in his thread from the Getting and Cleaning Data course from Coursera) 
 
-Activity indicates which one of six activities a subject was undertaking when a measurement was taken (LAYING, SITTING, STANDING, WALKING, WALKING DOWNSTAIRS, WALKING UPSTAIRS). 
+```{r}
+  data <- read.table(file_path, header = TRUE)
+  #With file_path being the local destination for the downloaded text file
+  View(data)
+```
 
-The remaining variables represent the individual features as described in the features_info.txt document from the UCI HAR data set (provided below and edited to include only measurements of means and standard deviations)
+The file run_analysis.R contains the code used to create the final dataset and will be described in blocks below. More detailed information about the variables and files can be found in the document "CODEBOOK.md" in this repository.
 
-(citation: http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones)
+---
+---
+Download Data from the UCI repository
+---
+---
+```{r}
+library(downloader)
+#The downloader package avoids some of the issues commonly encountered in the base #package's download.file() function and claims to be more efficient
 
-  "The features selected for this database come from the accelerometer and       gyroscope 3-axial raw signals tAcc-XYZ and tGyro-XYZ. These time domain signals (prefix 't' to denote time) were captured at a constant rate of 50 Hz. Then they were filtered using a median filter and a 3rd order low pass Butterworth filter with a corner frequency of 20 Hz to remove noise. Similarly, the acceleration signal was then separated into body and gravity acceleration signals (tBodyAcc-XYZ and tGravityAcc-XYZ) using another low pass Butterworth filter with a corner frequency of 0.3 Hz. 
-  
-  Subsequently, the body linear acceleration and angular velocity were derived in time to obtain Jerk signals (tBodyAccJerk-XYZ and tBodyGyroJerk-XYZ). Also the magnitude of these three-dimensional signals were calculated using the Euclidean norm (tBodyAccMag, tGravityAccMag, tBodyAccJerkMag, tBodyGyroMag, tBodyGyroJerkMag). 
-  
-  Finally a Fast Fourier Transform (FFT) was applied to some of these signals producing fBodyAcc-XYZ, fBodyAccJerk-XYZ, fBodyGyro-XYZ, fBodyAccJerkMag, fBodyGyroMag, fBodyGyroJerkMag. (Note the 'f' to indicate frequency domain signals). 
-  
-  These signals were used to estimate variables of the feature vector for each pattern:  
-  '-XYZ' is used to denote 3-axial signals in the X, Y and Z directions."
-  
-tBodyAcc-XYZ
-tGravityAcc-XYZ
-tBodyAccJerk-XYZ
-tBodyGyro-XYZ
-tBodyGyroJerk-XYZ
-tBodyAccMag
-tGravityAccMag
-tBodyAccJerkMag
-tBodyGyroMag
-tBodyGyroJerkMag
-fBodyAcc-XYZ
-fBodyAccJerk-XYZ
-fBodyGyro-XYZ
-fBodyAccMag
-fBodyAccJerkMag
-fBodyGyroMag
-fBodyGyroJerkMag
+HARUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+download(HARUrl, dest = "har.zip", mode = "wb")
+```
+---
+---
+Read the downloaded files into R and combine the test and training sets.
+---
+---
+```{r}
+#Read local files
+sub_test <- read.table("test/subject_test.txt")
+x_test <- read.table("test/X_test.txt")
+y_test <- read.table("test/y_test.txt")
 
-The set of variables that were estimated from these signals are: 
+sub_train <- read.table("train/subject_train.txt")
+x_train <- read.table("train/X_train.txt")
+y_train <- read.table("train/y_train.txt")
 
-mean(): Mean value
-std(): Standard deviation
-meanFreq(): Weighted average of the frequency components to obtain a mean frequency
-angle(): Angle between to vectors.
+#Combine data by add the rows of the training set data to the test set data for #each variable
+sub_tot <- rbind(sub_test, sub_train)
+x_tot <- rbind(x_test, x_train)
+y_tot <- rbind(y_test, y_train)
 
-Additional vectors obtained by averaging the signals in a signal window sample. These are used on the angle() variable:
+#Remove files that are no longer needed from the R workspace
+rm(sub_test, x_test, y_test, sub_train, x_train, y_train)
 
-gravityMean
-tBodyAccMean
-tBodyAccJerkMean
-tBodyGyroMean
-tBodyGyroJerkMean
+#Read files containing information for labeling data
+activity_labels <- read.table("activity_labels.txt", stringsAsFactor = FALSE)
+features <- read.table("features.txt", stringsAsFactor = FALSE)
+```
+---
+---
+Relabel and format variable names and change the activity labels from integers to descriptive names.
+---
+---
+```{r}
+library(dplyr)
+
+#Add character labels to the coded activity classes
+for(i in 1:length(y_tot$V1)) 
+  y_tot[i,2] <- activity_labels[y_tot[i,1], 2]
+
+#Apply feature names to feature values
+for(j in 1:length(x_tot))
+  {names(x_tot)[j] <- features[j,2]}
+
+
+#Remove duplicated column names
+dup_index <- duplicated(names(x_tot))
+x_tot <- x_tot[!dup_index]
+
+#Select only columns containing mean and std of measurements
+x_tot <- select(x_tot, contains("mean", ignore.case = TRUE), 
+                     contains("std", ignore.case = TRUE))
+
+#Format variable names for measurement variables
+for(j in 1:length(x_tot)) {
+  names(x_tot)[j] <- gsub("\\()", "", names(x_tot)[j])
+  names(x_tot)[j] <- gsub("-", " ", names(x_tot)[j])
+}
+```
+---
+---
+Combine data from the tables containing information about subject id, activity id and measurements into a single table then complete labeling of variables.
+---
+---
+```{r}
+#Combine data
+data_tot <- cbind(sub_tot, y_tot$V2, x_tot)
+
+#Rename variables
+names(data_tot)[1] <- "Subject"
+names(data_tot)[2] <- "Activity"
+```
+---
+---
+Reshape data and create output
+---
+---
+```{r}
+library(reshape2)
+
+#Produce a long table
+melt_data <- melt(data_tot, id.vars = c("Subject", "Activity"))
+
+#Reproduce a wide table and calculate means for each measurement by Subject and Activity
+cast_data <- dcast(melt_data, Subject + Activity ~ variable, mean)
+
+#Write tidy dataset to a text file
+write.table(cast_data, file = "tidy_har.txt", sep = "|", row.name = FALSE)
+```
+```
